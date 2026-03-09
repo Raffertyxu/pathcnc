@@ -412,6 +412,19 @@ function unexportedRuntimeSymbol(sym) {
 }
 
 // end include: runtime_debug.js
+// include: binaryDecode.js
+// Prevent Closure from minifying the binaryDecode() function, or otherwise
+// Closure may analyze through the WASM_BINARY_DATA placeholder string into this
+// function, leading into incorrect results.
+/** @noinline */
+function binaryDecode(bin) {
+  for (var i = 0, l = bin.length, o = new Uint8Array(l), c; i < l; ++i) {
+    c = bin.charCodeAt(i);
+    o[i] = ~c >> 8 & c; // Recover the null byte in a manner that is compatible with https://crbug.com/453961758
+  }
+  return o;
+}
+// end include: binaryDecode.js
 var readyPromiseResolve, readyPromiseReject;
 
 // Memory management
@@ -574,32 +587,14 @@ function createExportWrapper(name, nargs) {
 var wasmBinaryFile;
 
 function findWasmBinary() {
-  return locateFile('cnc.wasm');
+  return binaryDecode(' asm   $``~~`  `}}` `` pAA A memory __wasm_call_ctors  	calculate __indirect_function_table fflush emscripten_stack_init emscripten_stack_get_free emscripten_stack_get_base emscripten_stack_get_end _emscripten_stack_restore _emscripten_stack_alloc emscripten_stack_get_current \nÊ "# Ak!   8 *CffÆ?\n   $ #   kApq"$   #   A $ A AjApq$  # # k #  #    A  A  A   A û@  \r A !@A ( E\r A (  !@A ( E\r A (   r!@ ( " E\r @@@  (LA N\r A!   E!@  (  (F\r     r!@ \r      (8" \r   @@  (LA N\r A!   E!@@@  (  (F\r   A A   ($    (\r A! E\r@  ("  ("F\r     k¬A  ((  A !  A 6  B 7  B 7 \r     target_features+bulk-memory+bulk-memory-opt+call-indirect-overlong+\nmultivalue+mutable-globals+nontrapping-fptoint+reference-types+sign-ext');
 }
 
 function getBinarySync(file) {
-  if (file == wasmBinaryFile && wasmBinary) {
-    return new Uint8Array(wasmBinary);
-  }
-  if (readBinary) {
-    return readBinary(file);
-  }
-  // Throwing a plain string here, even though it not normally advisable since
-  // this gets turning into an `abort` in instantiateArrayBuffer.
-  throw 'both async and sync fetching of the wasm failed';
+  return file;
 }
 
 async function getWasmBinary(binaryFile) {
-  // If we don't have the binary yet, load it asynchronously using readAsync.
-  if (!wasmBinary) {
-    // Fetch the binary using readAsync
-    try {
-      var response = await readAsync(binaryFile);
-      return new Uint8Array(response);
-    } catch {
-      // Fall back to getBinarySync below;
-    }
-  }
 
   // Otherwise, getBinarySync should be able to get it synchronously
   return getBinarySync(binaryFile);
@@ -622,29 +617,6 @@ async function instantiateArrayBuffer(binaryFile, imports) {
 }
 
 async function instantiateAsync(binary, binaryFile, imports) {
-  if (!binary
-      // Don't use streaming for file:// delivered objects in a webview, fetch them synchronously.
-      && !isFileURI(binaryFile)
-      // Avoid instantiateStreaming() on Node.js environment for now, as while
-      // Node.js v18.1.0 implements it, it does not have a full fetch()
-      // implementation yet.
-      //
-      // Reference:
-      //   https://github.com/emscripten-core/emscripten/pull/16917
-      && !ENVIRONMENT_IS_NODE
-     ) {
-    try {
-      var response = fetch(binaryFile, { credentials: 'same-origin' });
-      var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
-      return instantiationResult;
-    } catch (reason) {
-      // We expect the most common failure cause to be a bad MIME type for the binary,
-      // in which case falling back to ArrayBuffer instantiation should work.
-      err(`wasm streaming compile failed: ${reason}`);
-      err('falling back to ArrayBuffer instantiation');
-      // fall back of instantiateArrayBuffer below
-    };
-  }
   return instantiateArrayBuffer(binaryFile, imports);
 }
 
@@ -740,6 +712,26 @@ async function createWasm() {
 
   var onPreRuns = [];
   var addOnPreRun = (cb) => onPreRuns.push(cb);
+
+  /** @noinline */
+  var base64Decode = (b64) => {
+      if (ENVIRONMENT_IS_NODE) {
+        var buf = Buffer.from(b64, 'base64');
+        return new Uint8Array(buf.buffer, buf.byteOffset, buf.length);
+      }
+  
+      assert(b64.length % 4 == 0);
+      var b1, b2, i = 0, j = 0, bLength = b64.length;
+      var output = new Uint8Array((bLength*3>>2) - (b64[bLength-2] == '=') - (b64[bLength-1] == '='));
+      for (; i < bLength; i += 4, j += 3) {
+        b1 = base64ReverseLookup[b64.charCodeAt(i+1)];
+        b2 = base64ReverseLookup[b64.charCodeAt(i+2)];
+        output[j] = base64ReverseLookup[b64.charCodeAt(i)] << 2 | b1 >> 4;
+        output[j+1] = b1 << 4 | b2 >> 2;
+        output[j+2] = b2 << 6 | base64ReverseLookup[b64.charCodeAt(i+3)];
+      }
+      return output;
+    };
 
 
   
@@ -1040,6 +1032,18 @@ async function createWasm() {
   var cwrap = (ident, returnType, argTypes, opts) => {
       return (...args) => ccall(ident, returnType, argTypes, args, opts);
     };
+
+    // Precreate a reverse lookup table from chars
+    // "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" back to
+    // bytes to make decoding fast.
+    for (var base64ReverseLookup = new Uint8Array(123/*'z'+1*/), i = 25; i >= 0; --i) {
+      base64ReverseLookup[48+i] = 52+i; // '0-9'
+      base64ReverseLookup[65+i] = i; // 'A-Z'
+      base64ReverseLookup[97+i] = 26+i; // 'a-z'
+    }
+    base64ReverseLookup[43] = 62; // '+'
+    base64ReverseLookup[47] = 63; // '/'
+  ;
 // End JS library code
 
 // include: postlibrary.js
@@ -1354,6 +1358,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'MONTH_DAYS_LEAP',
   'MONTH_DAYS_REGULAR_CUMULATIVE',
   'MONTH_DAYS_LEAP_CUMULATIVE',
+  'base64Decode',
   'SYSCALLS',
   'preloadPlugins',
   'FS_stdin_getChar_buffer',
