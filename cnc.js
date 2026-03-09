@@ -626,7 +626,7 @@ function createExportWrapper(name, nargs) {
 var wasmBinaryFile;
 
 function findWasmBinary() {
-  return binaryDecode(' asm   $``~~`  `}}` `` pAA A memory __wasm_call_ctors  	calculate __indirect_function_table fflush emscripten_stack_init emscripten_stack_get_free emscripten_stack_get_base emscripten_stack_get_end _emscripten_stack_restore _emscripten_stack_alloc emscripten_stack_get_current \nÊ "# Ak!   8 *CffÆ?\n   $ #   kApq"$   #   A $ A AjApq$  # # k #  #    A  A  A   A û@  \r A !@A ( E\r A (  !@A ( E\r A (   r!@ ( " E\r @@@  (LA N\r A!   E!@  (  (F\r     r!@ \r      (8" \r   @@  (LA N\r A!   E!@@@  (  (F\r   A A   ($    (\r A! E\r@  ("  ("F\r     k¬A  ((  A !  A 6  B 7  B 7 \r     target_features+bulk-memory+bulk-memory-opt+call-indirect-overlong+\nmultivalue+mutable-globals+nontrapping-fptoint+reference-types+sign-ext');
+  return binaryDecode(' asm   &``~~`  `}}}}` `` pAA A memory __wasm_call_ctors  	calculate __indirect_function_table fflush emscripten_stack_init emscripten_stack_get_free emscripten_stack_get_base emscripten_stack_get_end _emscripten_stack_restore _emscripten_stack_alloc emscripten_stack_get_current \n ç}# A k!   8  8  8 C TD8 C »D8  * *8  * *8@ *C  HB`AqE\r  A ²8 *! *!  *  8 @@ *C  úC`AqE\r   * Cfff?8 @ *C  ÈB`AqE\r   * C33s?8  * \n   $ #   kApq"$   #   A $ A AjApq$  # # k #  #    A  A  A   A û@  \r A !@A ( E\r A (  !@A ( E\r A (   r!@ ( " E\r @@@  (LA N\r A!   E!@  (  (F\r     r!@ \r      (8" \r   @@  (LA N\r A!   E!@@@  (  (F\r   A A   ($    (\r A! E\r@  ("  ("F\r     k¬A  ((  A !  A 6  B 7  B 7 \r     target_features+bulk-memory+bulk-memory-opt+call-indirect-overlong+\nmultivalue+mutable-globals+nontrapping-fptoint+reference-types+sign-ext');
 }
 
 function getBinarySync(file) {
@@ -1645,7 +1645,7 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['emscripten_stack_get_current'] != 'undefined', 'missing Wasm export: emscripten_stack_get_current');
   assert(typeof wasmExports['memory'] != 'undefined', 'missing Wasm export: memory');
   assert(typeof wasmExports['__indirect_function_table'] != 'undefined', 'missing Wasm export: __indirect_function_table');
-  _calculate = Module['_calculate'] = createExportWrapper('calculate', 1);
+  _calculate = Module['_calculate'] = createExportWrapper('calculate', 3);
   _fflush = createExportWrapper('fflush', 1);
   _emscripten_stack_init = wasmExports['emscripten_stack_init'];
   _emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'];
