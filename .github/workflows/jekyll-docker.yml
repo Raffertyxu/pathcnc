@@ -1,6 +1,16 @@
-- name: Build with Emscripten
-  run: |
-    docker run --rm -v $(pwd):/src emscripten/emsdk emcc main.cpp -o cnc.js \
-    -s EXPORTED_FUNCTIONS='["_calculate"]' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
-    -s SINGLE_FILE=1
+name: Compile-CPP-to-Wasm
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build with Emscripten
+        run: |
+          docker run --rm -v $(pwd):/src emscripten/emsdk emcc main.cpp -o cnc.js -s EXPORTED_FUNCTIONS='["_calculate"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' -s SINGLE_FILE=1
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
